@@ -100,3 +100,8 @@ export const Icon = styled.i`
     margin-right: 0;
   }
 `;
+
+export const TrashImage = styled.img`
+  height: 25px;
+  width: 25px;
+`;

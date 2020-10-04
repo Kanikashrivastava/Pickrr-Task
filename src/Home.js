@@ -171,7 +171,12 @@ export default function Home({ isFav }) {
           {beers.map((beer) => (
             <UI.Card key={beer.id}>
               <UI.CardHeader>
-                <UI.Icon onClick={deleteBeer(beer.id)}>Del</UI.Icon>
+                <UI.Icon onClick={deleteBeer(beer.id)}>
+                  <UI.TrashImage
+                    src="https://img.icons8.com/fluent/48/000000/empty-trash.png"
+                    alt="trash"
+                  />
+                </UI.Icon>
                 <UI.Icon onClick={toggleFav(beer.id)}>
                   {beerer.has(beer.id) ? <StarFilled /> : <StarEmpty />}
                 </UI.Icon>
