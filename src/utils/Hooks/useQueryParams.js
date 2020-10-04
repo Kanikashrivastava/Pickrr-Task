@@ -24,10 +24,20 @@ export const useQueryParams = () => {
     }));
   }, []);
 
+  const handleReset = useCallback(() => {
+    setQueryParams((prevQueryParams) => ({
+      ...prevQueryParams,
+      pageNum: 1,
+      pageSize: 9,
+      searchTerm: ""
+    }));
+  }, []);
+
   return [
     queryParams,
     handleSearchTerm,
     handlePageNumIncrease,
-    queryParams.pageNum === 1
+    queryParams.pageNum === 1,
+    handleReset
   ];
 };

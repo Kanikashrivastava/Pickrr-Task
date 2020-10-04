@@ -86,11 +86,14 @@ export const CardContent = styled.div`
 export const CardHeader = styled.div`
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  font-size: 14px;
 `;
 export const Icon = styled.i`
   align-self: flex-start;
   text-decoration: none;
   font-style: normal;
+  height: 20px;
   margin-right: 10px;
   cursor: pointer;
   &::last-child {

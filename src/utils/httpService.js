@@ -5,7 +5,7 @@ const httpService = {
     baseUrl = "https://api.punkapi.com/v2",
     readBody = (resp) => resp.json()
   ) => {
-    const { queryParams, removeEmptyParams } = options;
+    const { queryParams, removeEmptyParams = true } = options;
     const queryParamsString = Object.keys(queryParams)
       // remove empty params
       .filter((key) => (removeEmptyParams ? queryParams[key] : true))
@@ -25,6 +25,13 @@ export const fetchBeers = ({ pageNum, pageSize, searchTerm }) =>
       page: pageNum,
       per_page: pageSize,
       beer_name: searchTerm
-    },
-    removeEmptyParams: true
+    }
   });
+
+export const fetchBeerByIds = ({ ids }) => {
+  return httpService.get("/beers", {
+    queryParams: {
+      ids
+    }
+  });
+};

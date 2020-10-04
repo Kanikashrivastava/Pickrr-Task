@@ -1,57 +1,76 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useState, useMemo } from "react";
 import "./styles.css";
 import { useLocation } from "react-router-dom";
 import * as UI from "./ui-components";
-import { fetchBeers } from "./utils/httpService";
+import { fetchBeerByIds, fetchBeers } from "./utils/httpService";
 import { usePageScroll } from "./utils/Hooks/usePageScroll";
 import { useDebounce } from "./utils/Hooks/useDebounce";
 import { useQueryParams } from "./utils/Hooks/useQueryParams";
-
-class FavouriteBeers {
-  _beerKey = "beer";
-  _getBeers = () => {
+import { ReactComponent as StarEmpty } from "./star-empty.svg";
+import { ReactComponent as StarFilled } from "./star-filled.svg";
+class Beers {
+  _beerKey = "fav-beer";
+  _deletedBeerKey = "deleted-beer";
+  _getFavBeers = () => {
     return JSON.parse(localStorage.getItem(this._beerKey));
   };
-  _setBeers = (beers = []) => {
-    localStorage.setItem(this._beerKey, JSON.stringify(beers));
+  _getDeletedBeers = () => {
+    return JSON.parse(localStorage.getItem(this._deletedBeerKey));
+  };
+  _setFavBeers = (favBeers = []) => {
+    localStorage.setItem(this._beerKey, JSON.stringify(favBeers));
+  };
+  _setDeletedBeers = (deletedBeers = []) => {
+    localStorage.setItem(this._deletedBeerKey, JSON.stringify(deletedBeers));
   };
   constructor() {
     this._create();
   }
   add = (id) => {
-    this._create();
-    const favBeers = this._getBeers();
+    const favBeers = this._getFavBeers();
     favBeers.push(id);
-    this._setBeers(favBeers);
+    this._setFavBeers(favBeers);
   };
   remove = (id) => {
-    this._create();
-    const favBeers = this._getBeers();
-    this._setBeers(favBeers.filter((beerId) => id !== beerId));
+    const favBeers = this._getFavBeers();
+    this._setFavBeers(favBeers.filter((beerId) => id !== beerId));
   };
   getAll = () => {
-    this._create();
-    return "(|" + this._getBeers().join("|") + "|)";
+    return "(|" + this._getFavBeers().join("|") + "|)";
   };
   has = (id) => {
-    const favBeers = this._getBeers();
+    const favBeers = this._getFavBeers();
     return favBeers.includes(id);
   };
   _create = () => {
-    const favBeers = this._getBeers();
-    if (!favBeers) {
-      this._setBeers();
+    if (!this._getFavBeers() && !Array.isArray(this._getFavBeers())) {
+      this._setFavBeers();
     }
+    if (!this._getDeletedBeers() && !Array.isArray(this._getDeletedBeers())) {
+      this._setDeletedBeers();
+    }
+  };
+  isDeleted = (id) => {
+    const deletedBeers = this._getDeletedBeers();
+    return deletedBeers.includes(id);
+  };
+  filterDeletedBeer = (beers) => {
+    return beers.filter((beer) => !this.isDeleted(beer.id));
+  };
+  delete = (id) => {
+    const deletedBeers = this._getDeletedBeers();
+    deletedBeers.push(id);
+    this._setDeletedBeers(deletedBeers);
   };
   static create = () => {
     if (!this._favBeersInstance) {
-      this._favBeersInstance = new FavouriteBeers();
+      this._favBeersInstance = new Beers();
     }
     return this._favBeersInstance;
   };
 }
 
-export default function Home() {
+export default function Home({ isFav }) {
   const [beers, setBeers] = useState([]);
   const [
     queryParams,
@@ -60,40 +79,70 @@ export default function Home() {
     isFirstPage
   ] = useQueryParams();
   const isBottom = usePageScroll();
+  const beerer = useMemo(() => Beers.create(), []);
 
+  const fetchFavBeer = useCallback(async () => {
+    const ids = beerer.getAll();
+    const response = await fetchBeerByIds({ ids });
+    setBeers(response);
+  }, [beerer]);
   const handleBeers = useCallback(async () => {
     // Only need to be called when we have a new search keyword or first time load.
-    if (!isBottom && isFirstPage) {
+    if (!isBottom && isFirstPage && !isFav) {
       const response = await fetchBeers(queryParams);
-      setBeers(response);
+      setBeers(beerer.filterDeletedBeer(response));
       handlePageNumIncrease();
       // Call only when the user have reached to end of the page.
-    } else if (isBottom) {
+    } else if (isBottom && !isFav) {
       const response = await fetchBeers(queryParams);
       // No need to increase page number when responses are coming empty.
       if (response.length !== 0) {
-        setBeers((prevBeers) => [...prevBeers.concat(response)]);
+        setBeers((prevBeers) => [
+          ...prevBeers.concat(beerer.filterDeletedBeer(response))
+        ]);
         handlePageNumIncrease();
       }
+    } else if (isFav) {
+      fetchFavBeer();
     }
-  }, [queryParams, isFirstPage, isBottom, handlePageNumIncrease, setBeers]);
-
+  }, [
+    queryParams,
+    fetchFavBeer,
+    beerer,
+    isFav,
+    isFirstPage,
+    isBottom,
+    handlePageNumIncrease,
+    setBeers
+  ]);
   // Don't want to keep calling api on every single key stroke for search box.
   useDebounce(handleBeers, 500);
   const location = useLocation();
-
   const handleOnSearch = (e) => {
     const { value: searchTerm } = e.target;
     handleSearchTerm(searchTerm);
   };
-
-  const toggleFav = (id) => () => {
-    const favouriteBeers = FavouriteBeers.create();
-    if (!favouriteBeers.has(id)) {
-      favouriteBeers.add(id);
+  const toggleFav = (id) => async () => {
+    if (!beerer.has(id)) {
+      beerer.add(id);
     } else {
-      favouriteBeers.remove(id);
+      beerer.remove(id);
     }
+
+    if (isFav) {
+      fetchFavBeer();
+    } else {
+      // Force reload so the page loads instantly
+      setBeers((prevBeers) => [...prevBeers]);
+    }
+  };
+  const deleteBeer = (id) => () => {
+    // Remove from fav beers.
+    if (beerer.has(id)) {
+      beerer.remove(id);
+    }
+    beerer.delete(id);
+    setBeers((prevBeers) => beerer.filterDeletedBeer(prevBeers));
   };
   return (
     <div className="App">
@@ -120,10 +169,12 @@ export default function Home() {
         </UI.SearchBox>
         <UI.CardsView>
           {beers.map((beer) => (
-            <UI.Card key={beer.id} onClick={toggleFav(beer.id)}>
+            <UI.Card key={beer.id}>
               <UI.CardHeader>
-                <UI.Icon>Del</UI.Icon>
-                <UI.Icon>Fav</UI.Icon>
+                <UI.Icon onClick={deleteBeer(beer.id)}>Del</UI.Icon>
+                <UI.Icon onClick={toggleFav(beer.id)}>
+                  {beerer.has(beer.id) ? <StarFilled /> : <StarEmpty />}
+                </UI.Icon>
               </UI.CardHeader>
               <UI.CardContent>
                 <UI.Image src={beer.image_url} />
